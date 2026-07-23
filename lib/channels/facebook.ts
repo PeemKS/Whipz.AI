@@ -15,7 +15,13 @@ export const facebookAdapter: ChannelAdapter = {
   connectionMethod: "oauth",
 
   getAuthorizeUrl(state, redirectUri) {
-    return metaAuthorizeUrl(state, redirectUri, "pages_show_list,pages_messaging,pages_manage_metadata");
+    // business_management: Pages that live inside a Business Portfolio
+    // aren't returned by /me/accounts without it — see fetchMetaUserPages.
+    return metaAuthorizeUrl(
+      state,
+      redirectUri,
+      "pages_show_list,pages_messaging,pages_manage_metadata,business_management"
+    );
   },
 
   async listPickableTargets(code, redirectUri) {

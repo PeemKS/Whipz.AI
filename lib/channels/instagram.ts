@@ -16,10 +16,12 @@ export const instagramAdapter: ChannelAdapter = {
   connectionMethod: "oauth",
 
   getAuthorizeUrl(state, redirectUri) {
+    // business_management: Pages that live inside a Business Portfolio
+    // aren't returned by /me/accounts without it — see fetchMetaUserPages.
     return metaAuthorizeUrl(
       state,
       redirectUri,
-      "pages_show_list,pages_manage_metadata,instagram_basic,instagram_manage_messages"
+      "pages_show_list,pages_manage_metadata,instagram_basic,instagram_manage_messages,business_management"
     );
   },
 

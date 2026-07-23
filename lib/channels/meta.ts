@@ -30,11 +30,38 @@ export function metaAuthorizeUrl(state: string, redirectUri: string, scope: stri
   return `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?${params.toString()}`;
 }
 
+// Pages that live inside a Business Portfolio (Meta Business Manager)
+// aren't returned by /me/accounts, even with pages_show_list granted —
+// they need the business_management scope and a separate lookup through
+// the owning Business. Not fatal if this comes back empty: a plain
+// personal account with no Business Portfolio at all is the common case,
+// and /me/businesses just returns nothing for it.
+async function fetchBusinessManagerPages(
+  userAccessToken: string
+): Promise<{ id: string; name: string; access_token: string }[]> {
+  const bizRes = await fetch(`${GRAPH_BASE}/me/businesses?access_token=${userAccessToken}`);
+  if (!bizRes.ok) return [];
+  const { data: businesses } = (await bizRes.json()) as { data: { id: string; name: string }[] };
+
+  const pages: { id: string; name: string; access_token: string }[] = [];
+  for (const business of businesses ?? []) {
+    const pagesRes = await fetch(
+      `${GRAPH_BASE}/${business.id}/owned_pages?fields=id,name,access_token&access_token=${userAccessToken}`
+    );
+    if (!pagesRes.ok) continue;
+    const { data } = (await pagesRes.json()) as { data: { id: string; name: string; access_token: string }[] };
+    pages.push(...(data ?? []));
+  }
+  return pages;
+}
+
 // Exchanges the OAuth code for a user token, then lists every Page the
 // user manages (with each Page's own Access Token) — no auto-picking.
 // A business account with multiple Pages gets a picker UI (see
 // app/dashboard/settings/channels/pick) instead of silently taking
-// whichever Page Graph API happens to list first.
+// whichever Page Graph API happens to list first. Merges personal-admin
+// Pages (/me/accounts) with Business Portfolio-owned Pages, deduped by
+// id — a Page can in principle show up from both.
 export async function fetchMetaUserPages(
   code: string,
   redirectUri: string
@@ -51,8 +78,15 @@ export async function fetchMetaUserPages(
 
   const pagesRes = await fetch(`${GRAPH_BASE}/me/accounts?access_token=${userAccessToken}`);
   if (!pagesRes.ok) throw new Error(`Fetching Pages failed: ${await pagesRes.text()}`);
-  const { data } = (await pagesRes.json()) as { data: { id: string; access_token: string; name: string }[] };
-  return data;
+  const { data: personalPages } = (await pagesRes.json()) as { data: { id: string; access_token: string; name: string }[] };
+
+  const businessPages = await fetchBusinessManagerPages(userAccessToken);
+
+  const byId = new Map<string, { id: string; name: string; access_token: string }>();
+  for (const page of [...(personalPages ?? []), ...businessPages]) {
+    byId.set(page.id, page);
+  }
+  return Array.from(byId.values());
 }
 
 // Having the app-level Webhooks product configured isn't enough — each
