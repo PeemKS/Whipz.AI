@@ -102,7 +102,7 @@ export function PlaygroundChat({
 
   return (
     <div className="grid grid-cols-3 gap-6">
-      <Card padding="none" className="col-span-2 flex flex-col h-[60vh]">
+      <Card padding="none" className="col-span-2 flex flex-col min-h-[200px] max-h-[60vh]">
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {messages.length === 0 && <p className="text-sm text-zinc-500">{t.intro}</p>}
           {messages.map((message, i) => (
