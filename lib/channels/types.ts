@@ -10,10 +10,20 @@ export interface NormalizedEvent {
 interface OAuthAdapter {
   connectionMethod: "oauth";
   getAuthorizeUrl(state: string, redirectUri: string): string;
-  exchangeCode(
+  // Single-target channels implement this: one code exchange, one result.
+  exchangeCode?(
     code: string,
     redirectUri: string
   ): Promise<{ external_page_id: string; access_token: string; webhook_secret?: string }>;
+  // Multi-target channels (Meta: an account can manage several Pages)
+  // implement this pair instead, so the OAuth callback can show a picker
+  // rather than guessing which target the user wanted. When both are
+  // present the callback route prefers this path over exchangeCode.
+  listPickableTargets?(code: string, redirectUri: string): Promise<{ id: string; name: string; access_token: string }[]>;
+  finalizeTarget?(target: {
+    id: string;
+    access_token: string;
+  }): Promise<{ external_page_id: string; access_token: string; webhook_secret?: string }>;
 }
 
 interface ManualAdapter {

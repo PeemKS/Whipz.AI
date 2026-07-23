@@ -333,6 +333,11 @@ const en = {
     connectionFailed: "Connection failed: {error}",
     connected: "Connected —",
     notConnected: "Not connected",
+    pickTitle: "Choose a Page",
+    pickSubtitle: "This account manages more than one Page — pick the one you want to connect.",
+    pickSelect: "Connect this Page",
+    pickExpired: "This selection has expired — go back and try connecting again.",
+    pickBackLink: "Back to Channels",
   },
   settings: {
     tabProfile: "User Profile",
@@ -775,6 +780,11 @@ const th: typeof en = {
     connectionFailed: "การเชื่อมต่อล้มเหลว: {error}",
     connected: "เชื่อมต่อแล้ว —",
     notConnected: "ยังไม่ได้เชื่อมต่อ",
+    pickTitle: "เลือกเพจ",
+    pickSubtitle: "บัญชีนี้จัดการมากกว่าหนึ่งเพจ — เลือกเพจที่ต้องการเชื่อมต่อ",
+    pickSelect: "เชื่อมต่อเพจนี้",
+    pickExpired: "การเลือกนี้หมดอายุแล้ว — กลับไปลองเชื่อมต่อใหม่อีกครั้ง",
+    pickBackLink: "กลับไปที่ช่องทาง",
   },
   settings: {
     tabProfile: "โปรไฟล์ผู้ใช้",

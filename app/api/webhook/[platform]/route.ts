@@ -9,6 +9,11 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { decryptSecret } from "@/lib/crypto/tenantKey";
 import type { Channel } from "@/lib/supabase/types";
 
+// This loops runConversationTurn's tool-calling pipeline over every event
+// in a batch — Vercel's default function timeout (10s on Hobby) is too
+// tight even for a single conversation turn, let alone a batch.
+export const maxDuration = 60;
+
 // Meta requires a GET handshake echoing hub.challenge before it'll
 // start delivering webhooks; LINE and TikTok don't need this.
 export async function GET(req: NextRequest, { params }: { params: Promise<{ platform: string }> }) {

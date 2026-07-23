@@ -32,6 +32,16 @@ import { WEEK_DAYS } from "@/lib/supabase/types";
 
 const MAX_TOOL_ROUNDS = 4;
 
+// Two-tier model routing (qwen vendor only — the only vendor with a
+// verified-cheap tier; kimi tenants always use their configured model,
+// unchanged). qwen-turbo is empirically confirmed to return correctly-
+// formed tool calls via DashScope, so it's safe to use for both agent
+// routing (always — a cheap classification task regardless of how the
+// turn ends up handled) and the main completion loop on turns that
+// shouldEscalateToL3 hasn't flagged as needing real reasoning. Escalated
+// turns still use the tenant's configured (typically stronger) model.
+const LIGHT_TIER_MODEL = "qwen-turbo";
+
 // Safety-checklist caps (funnel-aware-agent blueprint §9): a ceiling
 // enforced in code, never left to the prompt. Per-turn resets every
 // call; per-session is a running total on the conversation row so it
@@ -194,11 +204,12 @@ export async function runConversationTurn(
   // routeAgent tries an embedding-similarity match first, reusing
   // queryEmbedding above, and only calls the LLM router when that's
   // ambiguous — see lib/agents/pickAgent.ts.
+  const routingModel = vendor === "qwen" ? LIGHT_TIER_MODEL : model;
   const activeAgents = await listActiveAgents(db, tenant_id);
   let agent: Agent | null = null;
   let routingWasConfident = true;
   if (activeAgents.length > 0) {
-    const routed = await routeAgent(db, client, model, tenant_id, activeAgents, queryEmbedding, {
+    const routed = await routeAgent(db, client, routingModel, tenant_id, activeAgents, queryEmbedding, {
       userMessage,
       productSummary: productBlock,
       customerSummary: customer?.notes ?? "",
@@ -215,7 +226,7 @@ export async function runConversationTurn(
     customer_id,
     kind: "routing_decision",
     layer: "l2",
-    model,
+    model: routingModel,
     result: { agent_id: agent?.id ?? null, agent_name: agent?.name ?? "default" },
   });
 
@@ -285,9 +296,10 @@ export async function runConversationTurn(
     return { reply: HUMAN_HANDOFF_REPLY, toolCalls: [], images: [] };
   }
 
-  // Escalated turns get a longer history window — more context to work
-  // with for a situation that needs extra care, same model either way
-  // (see lib/llm/client.ts — no separate small/large tier exists).
+  // Escalated turns get a longer history window (more context for a
+  // situation that needs extra care) and drop out of the light tier —
+  // see LIGHT_TIER_MODEL above.
+  const turnModel = vendor === "qwen" && !escalation.escalate ? LIGHT_TIER_MODEL : model;
   const history = await listMessages(db, conversation_id, escalation.escalate ? 40 : 20);
   const historyMessages: ChatCompletionMessageParam[] = history.map((m) => ({
     role: m.sender === "customer" ? "user" : "assistant",
@@ -322,7 +334,7 @@ export async function runConversationTurn(
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const roundStart = Date.now();
     const completion = await client.chat.completions.create({
-      model,
+      model: turnModel,
       messages,
       tools,
     });
@@ -339,7 +351,7 @@ export async function runConversationTurn(
       customer_id,
       kind: "completion",
       layer,
-      model,
+      model: turnModel,
       tokens_used: tokensUsed,
       latency_ms: latencyMs,
     });
@@ -369,7 +381,7 @@ export async function runConversationTurn(
         customer_id,
         kind: "escalation",
         layer: "l2",
-        model,
+        model: turnModel,
         result: { reason: "tool_call_limit_reached", toolCallsThisTurn, sessionToolCallCount, requested: requestedCalls.length },
       });
       await createMessage(db, { tenant_id, conversation_id, sender: "bot", content: TOOL_LIMIT_REPLY });
@@ -406,7 +418,7 @@ export async function runConversationTurn(
         args,
         result,
         layer,
-        model,
+        model: turnModel,
       });
 
       messages.push({
@@ -428,7 +440,7 @@ export async function runConversationTurn(
           customer_id,
           kind: "escalation",
           layer: "l3",
-          model,
+          model: turnModel,
           result: { type: "human_handoff", reasons: ["repeated_tool_failures"] },
         });
         await createMessage(db, { tenant_id, conversation_id, sender: "bot", content: HUMAN_HANDOFF_REPLY });

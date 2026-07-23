@@ -1,7 +1,8 @@
 import type { ChannelAdapter } from "@/lib/channels/types";
 import {
   metaAuthorizeUrl,
-  exchangeMetaCodeForPage,
+  fetchMetaUserPages,
+  subscribeMetaPageToWebhooks,
   verifyMetaSignature,
   parseMetaEvents,
   sendMetaMessage,
@@ -17,9 +18,13 @@ export const facebookAdapter: ChannelAdapter = {
     return metaAuthorizeUrl(state, redirectUri, "pages_show_list,pages_messaging,pages_manage_metadata");
   },
 
-  async exchangeCode(code, redirectUri) {
-    const { page_id, page_access_token } = await exchangeMetaCodeForPage(code, redirectUri);
-    return { external_page_id: page_id, access_token: page_access_token };
+  async listPickableTargets(code, redirectUri) {
+    return fetchMetaUserPages(code, redirectUri);
+  },
+
+  async finalizeTarget(target) {
+    await subscribeMetaPageToWebhooks(target.id, target.access_token);
+    return { external_page_id: target.id, access_token: target.access_token };
   },
 
   verifyWebhookSignature(rawBody, headers, webhookSecret) {

@@ -127,7 +127,13 @@ export function PlaygroundChat({
               )}
             </div>
           ))}
-          {loading && <p className="text-sm text-zinc-400">{t.thinking}</p>}
+          {loading && (
+            <div className="bg-violet-50 rounded-2xl px-4 py-3 w-fit flex items-center gap-1.5" role="status" aria-label={t.thinking}>
+              <span className="w-2 h-2 rounded-full bg-violet-400 animate-bounce [animation-delay:-0.3s]" />
+              <span className="w-2 h-2 rounded-full bg-violet-400 animate-bounce [animation-delay:-0.15s]" />
+              <span className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" />
+            </div>
+          )}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div ref={bottomRef} />
         </div>

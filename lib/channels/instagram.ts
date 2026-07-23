@@ -1,7 +1,8 @@
 import type { ChannelAdapter } from "@/lib/channels/types";
 import {
   metaAuthorizeUrl,
-  exchangeMetaCodeForPage,
+  fetchMetaUserPages,
+  subscribeMetaPageToWebhooks,
   getInstagramBusinessAccountId,
   getInstagramUserProfile,
   verifyMetaSignature,
@@ -22,14 +23,22 @@ export const instagramAdapter: ChannelAdapter = {
     );
   },
 
-  async exchangeCode(code, redirectUri) {
-    const { page_id, page_access_token } = await exchangeMetaCodeForPage(code, redirectUri);
-    const igAccountId = await getInstagramBusinessAccountId(page_id, page_access_token);
+  // The picker still lists Facebook Pages (Instagram messaging is
+  // authenticated via the linked Page's token) — resolving to the
+  // actual IG Business Account id happens at finalize time, once a
+  // specific Page has been chosen.
+  async listPickableTargets(code, redirectUri) {
+    return fetchMetaUserPages(code, redirectUri);
+  },
+
+  async finalizeTarget(target) {
+    const igAccountId = await getInstagramBusinessAccountId(target.id, target.access_token);
     if (!igAccountId) {
       throw new Error("This Facebook Page has no linked Instagram Business Account.");
     }
+    await subscribeMetaPageToWebhooks(target.id, target.access_token);
     // The linked Page's access token is what authenticates IG messaging calls too.
-    return { external_page_id: igAccountId, access_token: page_access_token };
+    return { external_page_id: igAccountId, access_token: target.access_token };
   },
 
   verifyWebhookSignature(rawBody, headers, webhookSecret) {

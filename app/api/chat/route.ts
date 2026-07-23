@@ -6,6 +6,10 @@ import { createMessage } from "@/lib/db/messages";
 import { runConversationTurn } from "@/lib/agents/runConversationTurn";
 import type { Channel } from "@/lib/supabase/types";
 
+// The tool-calling loop can run several completion rounds — Vercel's
+// default function timeout (10s on Hobby) is too tight for that.
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { tenant_id, channel, external_user_id, display_name, message } = body as {

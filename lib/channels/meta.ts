@@ -30,14 +30,15 @@ export function metaAuthorizeUrl(state: string, redirectUri: string, scope: stri
   return `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?${params.toString()}`;
 }
 
-// Exchanges the OAuth code for a user token, then resolves the first
-// Page the user manages and its Page Access Token. MVP simplification:
-// a business with multiple Pages would need a page-picker UI — this
-// just takes the first one Graph API returns.
-export async function exchangeMetaCodeForPage(
+// Exchanges the OAuth code for a user token, then lists every Page the
+// user manages (with each Page's own Access Token) — no auto-picking.
+// A business account with multiple Pages gets a picker UI (see
+// app/dashboard/settings/channels/pick) instead of silently taking
+// whichever Page Graph API happens to list first.
+export async function fetchMetaUserPages(
   code: string,
   redirectUri: string
-): Promise<{ page_id: string; page_access_token: string; page_name: string }> {
+): Promise<{ id: string; name: string; access_token: string }[]> {
   const tokenParams = new URLSearchParams({
     client_id: metaAppId(),
     redirect_uri: redirectUri,
@@ -51,20 +52,19 @@ export async function exchangeMetaCodeForPage(
   const pagesRes = await fetch(`${GRAPH_BASE}/me/accounts?access_token=${userAccessToken}`);
   if (!pagesRes.ok) throw new Error(`Fetching Pages failed: ${await pagesRes.text()}`);
   const { data } = (await pagesRes.json()) as { data: { id: string; access_token: string; name: string }[] };
+  return data;
+}
 
-  const page = data[0];
-  if (!page) throw new Error("No Facebook Page found for this account.");
-
-  // Having the app-level Webhooks product configured isn't enough —
-  // each Page has to individually opt in to push events to this app,
-  // or Meta just silently never calls the webhook for it.
+// Having the app-level Webhooks product configured isn't enough — each
+// Page has to individually opt in to push events to this app, or Meta
+// just silently never calls the webhook for it. Called once the caller
+// knows which specific Page was chosen (see fetchMetaUserPages above).
+export async function subscribeMetaPageToWebhooks(pageId: string, pageAccessToken: string): Promise<void> {
   const subscribeRes = await fetch(
-    `${GRAPH_BASE}/${page.id}/subscribed_apps?subscribed_fields=messages,messaging_postbacks&access_token=${page.access_token}`,
+    `${GRAPH_BASE}/${pageId}/subscribed_apps?subscribed_fields=messages,messaging_postbacks&access_token=${pageAccessToken}`,
     { method: "POST" }
   );
   if (!subscribeRes.ok) throw new Error(`Subscribing Page to webhooks failed: ${await subscribeRes.text()}`);
-
-  return { page_id: page.id, page_access_token: page.access_token, page_name: page.name };
 }
 
 // The Messenger webhook event only ever carries the sender's
